@@ -1,8 +1,12 @@
 #IDEA Files
-.idea
+.idea/
 target
 *.iml
 *.ipr
+*.iws
+
+target/
+
 build
 schema
 .gradle
