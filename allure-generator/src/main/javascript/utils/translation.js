@@ -6,7 +6,9 @@ export const LANGUAGES = [
     {id: 'ru', title: 'Русский'},
     {id: 'zh', title: '中文'},
     {id: 'de', title: 'Deutsch'},
-    {id: 'he', title: 'Hebrew'}
+    {id: 'he', title: 'Hebrew'},
+    {id: 'br', title: 'Brazil'},
+    {id: 'pl', title: 'Polski'},
 ];
 
 LANGUAGES

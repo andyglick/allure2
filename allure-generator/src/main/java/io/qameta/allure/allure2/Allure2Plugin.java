@@ -46,7 +46,11 @@ import static java.util.Objects.nonNull;
  *
  * @since 2.0
  */
-@SuppressWarnings("PMD.ExcessiveImports")
+@SuppressWarnings({
+        "PMD.ExcessiveImports",
+        "ClassDataAbstractionCoupling",
+        "ClassFanOutComplexity"
+})
 public class Allure2Plugin implements Reader {
 
     public static final String ALLURE2_RESULTS_FORMAT = "allure2";
@@ -115,6 +119,8 @@ public class Allure2Plugin implements Reader {
                 .setTime(convert(result.getStart(), result.getStop()))
                 .setStatus(convert(result.getStatus()))
                 .setSteps(convert(result.getSteps(), step -> convert(source, visitor, step)))
+                .setDescription(result.getDescription())
+                .setDescriptionHtml(result.getDescriptionHtml())
                 .setAttachments(convert(result.getAttachments(), attach -> convert(source, visitor, attach)))
                 .setParameters(convert(result.getParameters(), this::convert));
         Optional.of(result)
@@ -216,10 +222,12 @@ public class Allure2Plugin implements Reader {
     private StageResult getTestStage(final Path source,
                                      final ResultsVisitor visitor,
                                      final TestResult result) {
-        StageResult testStage = new StageResult();
+        final StageResult testStage = new StageResult();
         testStage.setSteps(convert(result.getSteps(), step -> convert(source, visitor, step)));
         testStage.setAttachments(convert(result.getAttachments(), attachment -> convert(source, visitor, attachment)));
         testStage.setStatus(convert(result.getStatus()));
+        testStage.setDescription(result.getDescription());
+        testStage.setDescriptionHtml(result.getDescriptionHtml());
         Optional.of(result)
                 .map(ExecutableItem::getStatusDetails)
                 .ifPresent(statusDetails -> {
