@@ -1,3 +1,18 @@
+/*
+ *  Copyright 2019 Qameta Software OÜ
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package io.qameta.allure.allure1;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -38,7 +53,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -497,12 +512,15 @@ public class Allure1Plugin implements Reader {
 
     private Map<String, String> processEnvironmentProperties(final Path directory) {
         final Path envPropsFile = directory.resolve("environment.properties");
-        final Map<String, String> items = new HashMap<>();
+        final Map<String, String> items = new LinkedHashMap<>();
         if (Files.exists(envPropsFile)) {
             try (InputStream is = Files.newInputStream(envPropsFile)) {
-                final Properties properties = new Properties();
-                properties.load(is);
-                properties.forEach((key, value) -> items.put(String.valueOf(key), String.valueOf(value)));
+                new Properties() {
+                    @Override
+                    public Object put(final Object key, final Object value) {
+                        return items.put((String) key, (String) value);
+                    }
+                }.load(is);
             } catch (IOException e) {
                 LOGGER.error("Could not read environments.properties file " + envPropsFile, e);
             }
@@ -512,7 +530,7 @@ public class Allure1Plugin implements Reader {
 
     private Map<String, String> processEnvironmentXml(final Path directory) {
         final Path envXmlFile = directory.resolve("environment.xml");
-        final Map<String, String> items = new HashMap<>();
+        final Map<String, String> items = new LinkedHashMap<>();
         if (Files.exists(envXmlFile)) {
             try (InputStream fis = Files.newInputStream(envXmlFile)) {
                 xmlMapper.readValue(fis, ru.yandex.qatools.commons.model.Environment.class).getParameter().forEach(p ->

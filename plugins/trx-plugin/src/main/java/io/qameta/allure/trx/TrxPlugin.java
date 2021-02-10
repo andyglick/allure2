@@ -1,10 +1,27 @@
+/*
+ *  Copyright 2019 Qameta Software OÜ
+ *
+ *  Licensed under the Apache License, Version 2.0 (the "License");
+ *  you may not use this file except in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
+ */
 package io.qameta.allure.trx;
 
 import io.qameta.allure.Reader;
 import io.qameta.allure.context.RandomUidContext;
 import io.qameta.allure.core.Configuration;
 import io.qameta.allure.core.ResultsVisitor;
+import io.qameta.allure.entity.StageResult;
 import io.qameta.allure.entity.Status;
+import io.qameta.allure.entity.Step;
 import io.qameta.allure.entity.TestResult;
 import io.qameta.allure.entity.Time;
 import io.qameta.allure.parser.XmlElement;
@@ -24,13 +41,18 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.time.chrono.ChronoZonedDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static io.qameta.allure.entity.LabelName.RESULT_FORMAT;
+import static io.qameta.allure.entity.LabelName.PACKAGE;
+import static io.qameta.allure.entity.LabelName.SUITE;
+import static io.qameta.allure.entity.LabelName.TEST_CLASS;
 import static java.nio.file.Files.newDirectoryStream;
 
 /**
@@ -53,6 +75,8 @@ public class TrxPlugin implements Reader {
     public static final String TEST_DEFINITIONS_ELEMENT = "TestDefinitions";
     public static final String UNIT_TEST_ELEMENT = "UnitTest";
     public static final String NAME_ATTRIBUTE = "name";
+    public static final String TEST_METHOD_ELEMENT = "TestMethod";
+    public static final String CLASS_NAME_ATTRIBUTE = "className";
     public static final String PROPERTIES_ELEMENT = "Properties";
     public static final String PROPERTY_ATTRIBUTE = "Property";
     public static final String KEY_ELEMENT = "Key";
@@ -65,6 +89,7 @@ public class TrxPlugin implements Reader {
     public static final String MESSAGE_ELEMENT_NAME = "Message";
     public static final String STACK_TRACE_ELEMENT_NAME = "StackTrace";
     public static final String ERROR_INFO_ELEMENT_NAME = "ErrorInfo";
+    public static final String STDOUT_ELEMENT_NAME = "StdOut";
 
     @Override
     public void readResults(final Configuration configuration,
@@ -104,6 +129,9 @@ public class TrxPlugin implements Reader {
 
     protected UnitTest parseUnitTest(final XmlElement unitTestElement) {
         final String name = unitTestElement.getAttribute(NAME_ATTRIBUTE);
+        final String className = unitTestElement.getFirst(TEST_METHOD_ELEMENT)
+                .map(testMethod -> testMethod.getAttribute(CLASS_NAME_ATTRIBUTE))
+                .orElse(null);
         final String description = unitTestElement.getFirst(DESCRIPTION_ELEMENT)
                 .map(XmlElement::getValue)
                 .orElse(null);
@@ -111,7 +139,7 @@ public class TrxPlugin implements Reader {
                 .map(execution -> execution.getAttribute(ID_ATTRIBUTE))
                 .orElse(null);
         final Map<String, String> properties = parseProperties(unitTestElement);
-        return new UnitTest(name, executionId, description, properties);
+        return new UnitTest(name, className, executionId, description, properties);
     }
 
     private Map<String, String> parseProperties(final XmlElement unitTestElement) {
@@ -161,13 +189,40 @@ public class TrxPlugin implements Reader {
                 .setTime(getTime(startTime, endTime));
         getStatusMessage(unitTestResult).ifPresent(result::setStatusMessage);
         getStatusTrace(unitTestResult).ifPresent(result::setStatusTrace);
+        getLogMessage(unitTestResult).ifPresent(logMessage -> {
+            final List<String> lines = splitLines(logMessage);
+            final List<Step> steps = lines
+                    .stream()
+                    .map(line -> new Step().setName(line))
+                    .collect(Collectors.toList());
+            final StageResult stageResult = new StageResult()
+                    .setSteps(steps);
+            result.setTestStage(stageResult);
+        });
         Optional.ofNullable(tests.get(executionId)).ifPresent(unitTest -> {
+            final String className = unitTest.getClassName();
+            final String fullName = String.format("%s.%s", className, testName);
             result.setParameters(unitTest.getParameters());
             result.setDescription(unitTest.getDescription());
+            result.setFullName(fullName);
+            result.setHistoryId(fullName);
+            result.addLabelIfNotExists(SUITE, className);
+            result.addLabelIfNotExists(TEST_CLASS, className);
+            result.addLabelIfNotExists(PACKAGE, className);
         });
 
         result.addLabelIfNotExists(RESULT_FORMAT, TRX_RESULTS_FORMAT);
         visitor.visitTestResult(result);
+    }
+
+    private List<String> splitLines(final String str) {
+        return Arrays.asList(str.split("\\r?\\n"));
+    }
+
+    private Optional<String> getLogMessage(final XmlElement unitTestResult) {
+        return unitTestResult.getFirst(OUTPUT_ELEMENT_NAME)
+                .flatMap(output -> output.getFirst(STDOUT_ELEMENT_NAME))
+                .map(XmlElement::getValue);
     }
 
     private Optional<String> getStatusMessage(final XmlElement unitTestResult) {
@@ -213,7 +268,7 @@ public class TrxPlugin implements Reader {
             return Optional.ofNullable(time)
                     .map(ZonedDateTime::parse)
                     .map(ChronoZonedDateTime::toInstant)
-                    .map(Instant::getEpochSecond);
+                    .map(Instant::toEpochMilli);
         } catch (Exception e) {
             LOGGER.error("Could not parse time {}", time, e);
             return Optional.empty();

@@ -11,12 +11,12 @@ import {interpolateYlOrRd} from 'd3-scale-chromatic';
     chart: '.retry-trend__chart'
 })
 @className('retry-trend')
-export default class RetryTrendWidgetView extends View {
+class RetryTrendWidgetView extends View {
     template = template;
 
     onRender() {
         const {retry, run} = this.model.last().get('data');
-        const retriesPercent = Math.min(retry, run)/run;
+        const retriesPercent = Math.min(0.3 + Math.min(retry, run)/run, 1);
         const colors = scaleOrdinal(['#4682b4', interpolateYlOrRd(retriesPercent)]);
         this.showChildView('chart', new TrendChartView({
             model: this.model,
@@ -27,3 +27,5 @@ export default class RetryTrendWidgetView extends View {
         }));
     }
 }
+
+export default RetryTrendWidgetView;

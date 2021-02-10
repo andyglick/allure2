@@ -5,7 +5,7 @@ import template from './TreeView.hbs';
 import {behavior, className, on} from '../../decorators';
 import router from '../../router';
 import getComparator from '../../data/tree/comparator';
-import {byStatuses, byText, mix} from '../../data/tree/filter';
+import {byStatuses, byText, byMark, mix} from '../../data/tree/filter';
 import {SEARCH_QUERY_KEY} from '../node-search/NodeSearchView';
 
 @className('tree')
@@ -35,8 +35,9 @@ class TreeView extends View {
 
     applyFilters() {
         const visibleStatuses = this.settings.getVisibleStatuses();
+        const visibleMarks = this.settings.getVisibleMarks();
         const searchQuery = this.state.get(SEARCH_QUERY_KEY);
-        const filter = mix(byText(searchQuery), byStatuses(visibleStatuses));
+        const filter = mix(byText(searchQuery), byStatuses(visibleStatuses), byMark(visibleMarks));
 
         const sortSettings = this.settings.getTreeSorting();
         const sorter = getComparator(sortSettings);
@@ -112,7 +113,11 @@ class TreeView extends View {
             el.toggleClass('node__expanded', this.state.has(uid));
         });
         this.$('.node__title_active').parents('.node').toggleClass('node__expanded', true);
-        this.$('.node__expanded').parents('.node').toggleClass('node__expanded', true);
+        if (this.$('.node').parents('.node__expanded').length > 0) {
+            this.$('.node__expanded').parents('div.node.node__expanded').toggleClass('node__expanded', true);
+        } else {
+            this.$('.node__expanded').parents('.node').toggleClass('node__expanded', true);
+        }
     }
 
     findElement(treeNode) {
